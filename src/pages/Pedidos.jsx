@@ -46,8 +46,18 @@ export default function Pedidos({ alimentos, pedidos, setPedidos }) {
     setCarrito([]);
   };
 
+  const pedidosActivos = pedidos.filter(p => !p.pagado);
+  const mesasOcupadas = new Set(pedidosActivos.map(p => p.mesa));
+  let mesaAuto = 1;
+  while (mesasOcupadas.has(mesaAuto)) {
+    mesaAuto += 1;
+  }
+
   const enviarPedido = () => {
-    if (!mesa || carrito.length === 0) return;
+    if (carrito.length === 0) return;
+
+    const mesaNumero = mesa.trim() !== "" ? parseInt(mesa) : mesaAuto;
+    if (isNaN(mesaNumero) || mesaNumero <= 0) return;
 
     if (editandoPedidoId !== null) {
       setPedidos(prev => prev.map(p =>
@@ -67,10 +77,10 @@ export default function Pedidos({ alimentos, pedidos, setPedidos }) {
     }
 
     const pedidoExistente = pedidos.find(
-      p => p.mesa === parseInt(mesa) && !p.pagado
+      p => p.mesa === mesaNumero && !p.pagado
     );
     if (pedidoExistente) {
-      if (!confirm(`La mesa ${mesa} ya tiene un pedido activo. ¿Agregar estos platos a su cuenta?`)) {
+      if (!confirm(`La mesa ${mesaNumero} ya tiene un pedido activo. ¿Agregar estos platos a su cuenta?`)) {
         return;
       }
       setPedidos(prev => prev.map(p => {
@@ -99,7 +109,7 @@ export default function Pedidos({ alimentos, pedidos, setPedidos }) {
 
     const nuevo = {
       id: Date.now(),
-      mesa: parseInt(mesa),
+      mesa: mesaNumero,
       items: [...carrito],
       total,
       estado: "pendiente",
@@ -130,8 +140,6 @@ export default function Pedidos({ alimentos, pedidos, setPedidos }) {
     entregado: <Check size={12} />,
   };
 
-  const pedidosActivos = pedidos.filter(p => !p.pagado);
-
   return (
     <div className="flex gap-4 h-full">
       {/* ─── PANEL IZQUIERDO: MENÚ ─────────────────────────── */}
@@ -141,7 +149,8 @@ export default function Pedidos({ alimentos, pedidos, setPedidos }) {
         <div className="flex gap-3 items-center flex-wrap">
           <input
             type="number"
-            placeholder="Nº Mesa"
+            min="1"
+            placeholder={`Auto (${mesaAuto})`}
             value={mesa}
             disabled={editandoPedidoId !== null}
             onChange={e => setMesa(e.target.value)}
@@ -220,7 +229,9 @@ export default function Pedidos({ alimentos, pedidos, setPedidos }) {
             <h2 className="font-bold text-white text-sm">
               {editandoPedidoId !== null ? "Editando pedido" : "Pedido actual"}
             </h2>
-            {mesa && <span className="ml-auto text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full border border-orange-500/30">Mesa {mesa}</span>}
+            <span className="ml-auto text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full border border-orange-500/30">
+              {mesa.trim() !== "" ? `Mesa ${mesa}` : `Auto: Mesa ${mesaAuto}`}
+            </span>
             {editandoPedidoId !== null && (
               <button
                 onClick={cancelarEdicion}
@@ -258,7 +269,7 @@ export default function Pedidos({ alimentos, pedidos, setPedidos }) {
           <div className="flex gap-2">
             <button
               onClick={enviarPedido}
-              disabled={!mesa || carrito.length === 0}
+              disabled={carrito.length === 0}
               className="flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-orange-500 hover:bg-orange-400 text-white"
             >
               {editandoPedidoId !== null ? "Actualizar Pedido" : "Enviar a Cocina"}

@@ -1,16 +1,18 @@
 import { useState, useEffect } from "react";
-import { ShoppingBag, CreditCard, BarChart3, UtensilsCrossed, Trash2 } from "lucide-react";
-import { initialAlimentos } from "./data/store";
+import { ShoppingBag, CreditCard, BarChart3, UtensilsCrossed, Trash2, Package } from "lucide-react";
+import { initialAlimentos, initialInsumos } from "./data/store";
 import Pedidos from "./pages/Pedidos";
 import Caja from "./pages/Caja";
 import Reportes from "./pages/Reportes";
 import Alimentos from "./pages/Alimentos";
+import Inventario from "./pages/Inventario";
 
 const NAV = [
-  { id: "pedidos",   label: "Pedidos",   icon: ShoppingBag     },
-  { id: "caja",      label: "Caja",      icon: CreditCard      },
-  { id: "reportes",  label: "Reportes",  icon: BarChart3       },
-  { id: "alimentos", label: "Alimentos", icon: UtensilsCrossed },
+  { id: "pedidos",    label: "Pedidos",    icon: ShoppingBag     },
+  { id: "caja",       label: "Caja",       icon: CreditCard      },
+  { id: "reportes",   label: "Reportes",   icon: BarChart3       },
+  { id: "alimentos",  label: "Alimentos",  icon: UtensilsCrossed },
+  { id: "inventario", label: "Inventario", icon: Package         },
 ];
 
 // ─── Helpers localStorage ──────────────────────────────────────
@@ -35,28 +37,36 @@ export default function App() {
   const [pagina, setPagina] = useState("pedidos");
   const [pedidos, setPedidos] = useState(() => cargar("pos_pedidos", []));
   const [alimentos, setAlimentos] = useState(() => cargar("pos_alimentos", initialAlimentos));
+  const [insumos, setInsumos] = useState(() => cargar("pos_insumos", initialInsumos));
   const [confirmLimpiar, setConfirmLimpiar] = useState(false);
 
   // Guardar automáticamente cuando cambian los datos
   useEffect(() => { guardar("pos_pedidos", pedidos); }, [pedidos]);
   useEffect(() => { guardar("pos_alimentos", alimentos); }, [alimentos]);
+  useEffect(() => { guardar("pos_insumos", insumos); }, [insumos]);
 
   const limpiarDatos = () => {
     localStorage.removeItem("pos_pedidos");
     localStorage.removeItem("pos_alimentos");
+    localStorage.removeItem("pos_insumos");
     setPedidos([]);
     setAlimentos(initialAlimentos);
+    setInsumos(initialInsumos);
     setConfirmLimpiar(false);
   };
 
   const pedidosPendientesPago = pedidos.filter(p => !p.pagado && p.estado === "entregado").length;
   const pedidosEnCocina = pedidos.filter(p => !p.pagado && p.estado !== "entregado").length;
+  const alertasInventario =
+    insumos.filter(i => i.cantidad <= i.minimo).length +
+    alimentos.filter(a => a.controlarStock && (a.stock ?? 0) <= (a.stockMinimo ?? 5)).length;
 
   const PAGES = {
-    pedidos:   <Pedidos   alimentos={alimentos} pedidos={pedidos} setPedidos={setPedidos} />,
-    caja:      <Caja      pedidos={pedidos} setPedidos={setPedidos} />,
-    reportes:  <Reportes  pedidos={pedidos} />,
-    alimentos: <Alimentos alimentos={alimentos} setAlimentos={setAlimentos} />,
+    pedidos:    <Pedidos    alimentos={alimentos} setAlimentos={setAlimentos} pedidos={pedidos} setPedidos={setPedidos} />,
+    caja:       <Caja       pedidos={pedidos} setPedidos={setPedidos} />,
+    reportes:   <Reportes   pedidos={pedidos} />,
+    alimentos:  <Alimentos  alimentos={alimentos} setAlimentos={setAlimentos} />,
+    inventario: <Inventario alimentos={alimentos} setAlimentos={setAlimentos} insumos={insumos} setInsumos={setInsumos} />,
   };
 
   return (
@@ -74,7 +84,10 @@ export default function App() {
 
         <nav className="flex gap-1">
           {NAV.map(({ id, label, icon: Icon }) => {
-            const badge = id === "caja" ? pedidosPendientesPago : id === "pedidos" ? pedidosEnCocina : 0;
+            const badge =
+              id === "caja" ? pedidosPendientesPago :
+              id === "pedidos" ? pedidosEnCocina :
+              id === "inventario" ? alertasInventario : 0;
             return (
               <button
                 key={id}

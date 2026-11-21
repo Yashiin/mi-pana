@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Plus, Minus, ShoppingCart, X, Check, ChefHat, Clock, Pencil } from "lucide-react";
 import { obtenerFechaISO } from "../data/store";
 
-export default function Pedidos({ alimentos, pedidos, setPedidos }) {
+export default function Pedidos({ alimentos, setAlimentos, pedidos, setPedidos }) {
   const [mesa, setMesa] = useState("");
   const [carrito, setCarrito] = useState([]);
   const [categoriaFiltro, setCategoriaFiltro] = useState("Todos");
@@ -14,9 +14,19 @@ export default function Pedidos({ alimentos, pedidos, setPedidos }) {
     a.disponible && (categoriaFiltro === "Todos" || a.categoria === categoriaFiltro)
   );
 
+  const maxDisponiblePara = (alimento) => {
+    if (!alimento.controlarStock) return Infinity;
+    const enPedidoEditado = editandoPedidoId !== null
+      ? (pedidos.find(p => p.id === editandoPedidoId)?.items.find(i => i.id === alimento.id)?.cantidad || 0)
+      : 0;
+    return (alimento.stock ?? 0) + enPedidoEditado;
+  };
+
   const agregarAlCarrito = (alimento) => {
     setCarrito(prev => {
       const existe = prev.find(i => i.id === alimento.id);
+      const actual = existe ? existe.cantidad : 0;
+      if (actual >= maxDisponiblePara(alimento)) return prev;
       if (existe) return prev.map(i => i.id === alimento.id ? { ...i, cantidad: i.cantidad + 1 } : i);
       return [...prev, { ...alimento, cantidad: 1 }];
     });
@@ -53,6 +63,14 @@ export default function Pedidos({ alimentos, pedidos, setPedidos }) {
     mesaAuto += 1;
   }
 
+  const aplicarAjusteStock = (deltas) => {
+    if (!setAlimentos) return;
+    setAlimentos(prev => prev.map(a => {
+      if (!a.controlarStock || !deltas[a.id]) return a;
+      return { ...a, stock: Math.max(0, (a.stock ?? 0) - deltas[a.id]) };
+    }));
+  };
+
   const enviarPedido = () => {
     if (carrito.length === 0) return;
 
@@ -60,6 +78,14 @@ export default function Pedidos({ alimentos, pedidos, setPedidos }) {
     if (isNaN(mesaNumero) || mesaNumero <= 0) return;
 
     if (editandoPedidoId !== null) {
+      const pedidoOriginal = pedidos.find(p => p.id === editandoPedidoId);
+      const deltas = {};
+      if (pedidoOriginal) {
+        pedidoOriginal.items.forEach(i => { deltas[i.id] = (deltas[i.id] || 0) - i.cantidad; });
+      }
+      carrito.forEach(i => { deltas[i.id] = (deltas[i.id] || 0) + i.cantidad; });
+      aplicarAjusteStock(deltas);
+
       setPedidos(prev => prev.map(p =>
         p.id === editandoPedidoId
           ? {
@@ -83,6 +109,10 @@ export default function Pedidos({ alimentos, pedidos, setPedidos }) {
       if (!confirm(`La mesa ${mesaNumero} ya tiene un pedido activo. ¿Agregar estos platos a su cuenta?`)) {
         return;
       }
+      const deltas = {};
+      carrito.forEach(i => { deltas[i.id] = (deltas[i.id] || 0) + i.cantidad; });
+      aplicarAjusteStock(deltas);
+
       setPedidos(prev => prev.map(p => {
         if (p.id !== pedidoExistente.id) return p;
         const itemsActualizados = p.items.map(i => ({ ...i }));
@@ -106,6 +136,10 @@ export default function Pedidos({ alimentos, pedidos, setPedidos }) {
       setMesa("");
       return;
     }
+
+    const deltas = {};
+    carrito.forEach(i => { deltas[i.id] = (deltas[i.id] || 0) + i.cantidad; });
+    aplicarAjusteStock(deltas);
 
     const nuevo = {
       id: Date.now(),
@@ -177,16 +211,33 @@ export default function Pedidos({ alimentos, pedidos, setPedidos }) {
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 overflow-y-auto pr-1">
           {alimentosFiltrados.map(alimento => {
             const qty = cantidadEnCarrito(alimento.id);
+            const maxDisp = maxDisponiblePara(alimento);
+            const sinStock = alimento.controlarStock && maxDisp <= 0;
+            const enLimite = alimento.controlarStock && qty >= maxDisp;
+            const stockBajo = alimento.controlarStock && (alimento.stock ?? 0) <= (alimento.stockMinimo ?? 5);
+
             return (
               <div
                 key={alimento.id}
                 className={`bg-slate-800 rounded-2xl p-4 border transition-all ${
+                  sinStock ? "border-red-500/30 opacity-60" :
                   qty > 0 ? "border-orange-500/50 shadow-lg shadow-orange-500/10" : "border-slate-700 hover:border-slate-600"
                 }`}
               >
                 <div className="flex flex-col gap-2">
                   <div>
-                    <p className="text-xs text-orange-400 font-medium">{alimento.categoria}</p>
+                    <div className="flex items-center justify-between gap-1">
+                      <p className="text-xs text-orange-400 font-medium">{alimento.categoria}</p>
+                      {alimento.controlarStock && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
+                          (alimento.stock ?? 0) <= 0 ? "bg-red-500/20 text-red-400" :
+                          stockBajo ? "bg-amber-500/20 text-amber-400" :
+                          "bg-emerald-500/20 text-emerald-400"
+                        }`}>
+                          {(alimento.stock ?? 0) <= 0 ? "Agotado" : `Stock: ${alimento.stock}`}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-white font-semibold text-sm leading-tight mt-0.5">{alimento.nombre}</p>
                     <p className="text-slate-300 font-bold mt-1">R$ {alimento.precio.toFixed(2)}</p>
                   </div>
@@ -194,9 +245,10 @@ export default function Pedidos({ alimentos, pedidos, setPedidos }) {
                     {qty === 0 ? (
                       <button
                         onClick={() => agregarAlCarrito(alimento)}
-                        className="flex items-center gap-1 bg-orange-500 hover:bg-orange-400 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors w-full justify-center"
+                        disabled={sinStock}
+                        className="flex items-center gap-1 bg-orange-500 hover:bg-orange-400 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors w-full justify-center"
                       >
-                        <Plus size={14} /> Agregar
+                        <Plus size={14} /> {sinStock ? "Agotado" : "Agregar"}
                       </button>
                     ) : (
                       <div className="flex items-center gap-2 w-full justify-between bg-slate-900 rounded-lg p-1">
@@ -204,7 +256,11 @@ export default function Pedidos({ alimentos, pedidos, setPedidos }) {
                           <Minus size={14} />
                         </button>
                         <span className="text-white font-bold text-sm">{qty}</span>
-                        <button onClick={() => agregarAlCarrito(alimento)} className="bg-orange-500 hover:bg-orange-400 rounded-md p-1 text-white transition-colors">
+                        <button
+                          onClick={() => agregarAlCarrito(alimento)}
+                          disabled={enLimite}
+                          className="bg-orange-500 hover:bg-orange-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-md p-1 text-white transition-colors"
+                        >
                           <Plus size={14} />
                         </button>
                       </div>

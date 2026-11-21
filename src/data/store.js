@@ -84,6 +84,22 @@ export const CATEGORIAS = ["Hamburguesas", "Perros Calientes", "Salchipapas", "B
 
 export const METODOS_PAGO = ["Efectivo", "Tarjeta", "Transferencia", "PIX"];
 
+export const CATEGORIAS_INSUMO = ["Proteínas", "Lácteos", "Panadería y Masas", "Verduras", "Bebidas", "Empaques", "Otros"];
+export const UNIDADES_INSUMO = ["kg", "g", "uds", "L", "ml", "paq"];
+
+export const initialInsumos = [
+  { id: 101, nombre: "Carne Mechada", categoria: "Proteínas", cantidad: 10, minimo: 3, unidad: "kg" },
+  { id: 102, nombre: "Pollo Desfiado", categoria: "Proteínas", cantidad: 10, minimo: 3, unidad: "kg" },
+  { id: 103, nombre: "Salchichas", categoria: "Proteínas", cantidad: 50, minimo: 15, unidad: "uds" },
+  { id: 104, nombre: "Queso Llanero", categoria: "Lácteos", cantidad: 8, minimo: 2, unidad: "kg" },
+  { id: 105, nombre: "Queso Mozzarella", categoria: "Lácteos", cantidad: 5, minimo: 2, unidad: "kg" },
+  { id: 106, nombre: "Harina Pan", categoria: "Panadería y Masas", cantidad: 15, minimo: 5, unidad: "paq" },
+  { id: 107, nombre: "Pan de Perro", categoria: "Panadería y Masas", cantidad: 40, minimo: 12, unidad: "uds" },
+  { id: 108, nombre: "Pan de Hamburguesa", categoria: "Panadería y Masas", cantidad: 30, minimo: 10, unidad: "uds" },
+  { id: 109, nombre: "Plátano Verde / Maduro", categoria: "Verduras", cantidad: 25, minimo: 8, unidad: "uds" },
+  { id: 110, nombre: "Empaques / Cajas Delivery", categoria: "Empaques", cantidad: 80, minimo: 20, unidad: "uds" },
+];
+
 // ─── HELPERS DE FECHA (LOCAL YYYY-MM-DD) ─────────────────────
 export function obtenerFechaISO(fecha = new Date()) {
   const d = fecha instanceof Date ? fecha : new Date(fecha);

@@ -52,11 +52,25 @@ export default function Reportes({ pedidos }) {
   const ticketPromedio = totalPedidos > 0 ? totalVentas / totalPedidos : 0;
 
   // Ventas por método de pago
-  const porMetodo = METODOS_PAGO.map(m => ({
-    nombre: m,
-    total: pedidosHoy.filter(p => p.metodoPago === m).reduce((s, p) => s + p.total, 0),
-    cantidad: pedidosHoy.filter(p => p.metodoPago === m).length,
-  })).filter(m => m.cantidad > 0);
+  const porMetodo = METODOS_PAGO.map(m => {
+    let total = 0;
+    let cantidad = 0;
+    pedidosHoy.forEach(p => {
+      if (p.pagos && p.pagos.length > 0) {
+        const sumaMetodo = p.pagos
+          .filter(pg => pg.metodoPago === m)
+          .reduce((s, pg) => s + pg.monto, 0);
+        if (sumaMetodo > 0) {
+          total += sumaMetodo;
+          cantidad += 1;
+        }
+      } else if (p.metodoPago === m) {
+        total += p.total;
+        cantidad += 1;
+      }
+    });
+    return { nombre: m, total, cantidad };
+  }).filter(m => m.cantidad > 0);
 
   // Items más vendidos
   const itemsConteo = {};
@@ -271,8 +285,11 @@ export default function Reportes({ pedidos }) {
                       <span className={`px-2 py-0.5 rounded-full text-xs ${
                         p.metodoPago === "Efectivo" ? "bg-green-500/20 text-green-400" :
                         p.metodoPago === "Tarjeta" ? "bg-blue-500/20 text-blue-400" :
+                        p.metodoPago === "Dividido" ? "bg-orange-500/20 text-orange-400" :
                         "bg-purple-500/20 text-purple-400"
-                      }`}>{p.metodoPago}</span>
+                      }`}>
+                        {p.pagos?.length > 1 ? `Dividido (${p.pagos.length}x)` : p.metodoPago}
+                      </span>
                     </td>
                     <td className="py-2.5 text-right text-emerald-400 font-bold">R$ {p.total.toFixed(2)}</td>
                   </tr>

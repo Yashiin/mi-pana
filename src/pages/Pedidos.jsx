@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Plus, Minus, ShoppingCart, X, Check, ChefHat, Clock } from "lucide-react";
+import { Plus, Minus, ShoppingCart, X, Check, ChefHat, Clock, Pencil } from "lucide-react";
 import { obtenerFechaISO } from "../data/store";
 
 export default function Pedidos({ alimentos, pedidos, setPedidos }) {
   const [mesa, setMesa] = useState("");
   const [carrito, setCarrito] = useState([]);
   const [categoriaFiltro, setCategoriaFiltro] = useState("Todos");
+  const [editandoPedidoId, setEditandoPedidoId] = useState(null);
 
   const categorias = ["Todos", ...new Set(alimentos.filter(a => a.disponible).map(a => a.categoria))];
 
@@ -33,20 +34,70 @@ export default function Pedidos({ alimentos, pedidos, setPedidos }) {
 
   const total = carrito.reduce((sum, i) => sum + i.precio * i.cantidad, 0);
 
+  const iniciarEdicion = (pedido) => {
+    setEditandoPedidoId(pedido.id);
+    setMesa(String(pedido.mesa));
+    setCarrito(pedido.items.map(i => ({ ...i })));
+  };
+
+  const cancelarEdicion = () => {
+    setEditandoPedidoId(null);
+    setMesa("");
+    setCarrito([]);
+  };
+
   const enviarPedido = () => {
-  if (!mesa || carrito.length === 0) return;
+    if (!mesa || carrito.length === 0) return;
 
-  // ── Validación nueva ──────────────────────────────
-  const mesaOcupada = pedidos.some(
-    p => p.mesa === parseInt(mesa) && !p.pagado
-  );
-  if (mesaOcupada) {
-    alert(`La mesa ${mesa} ya tiene un pedido activo`);
-    return;
-  }
-  // ─────────────────────────────────────────────────
+    if (editandoPedidoId !== null) {
+      setPedidos(prev => prev.map(p =>
+        p.id === editandoPedidoId
+          ? {
+              ...p,
+              items: [...carrito],
+              total,
+              estado: p.estado === "entregado" ? "pendiente" : p.estado,
+            }
+          : p
+      ));
+      setEditandoPedidoId(null);
+      setCarrito([]);
+      setMesa("");
+      return;
+    }
 
-  const nuevo = {
+    const pedidoExistente = pedidos.find(
+      p => p.mesa === parseInt(mesa) && !p.pagado
+    );
+    if (pedidoExistente) {
+      if (!confirm(`La mesa ${mesa} ya tiene un pedido activo. ¿Agregar estos platos a su cuenta?`)) {
+        return;
+      }
+      setPedidos(prev => prev.map(p => {
+        if (p.id !== pedidoExistente.id) return p;
+        const itemsActualizados = p.items.map(i => ({ ...i }));
+        carrito.forEach(nuevoItem => {
+          const idx = itemsActualizados.findIndex(i => i.id === nuevoItem.id);
+          if (idx >= 0) {
+            itemsActualizados[idx].cantidad += nuevoItem.cantidad;
+          } else {
+            itemsActualizados.push({ ...nuevoItem });
+          }
+        });
+        const nuevoTotal = itemsActualizados.reduce((sum, i) => sum + i.precio * i.cantidad, 0);
+        return {
+          ...p,
+          items: itemsActualizados,
+          total: nuevoTotal,
+          estado: p.estado === "entregado" ? "pendiente" : p.estado,
+        };
+      }));
+      setCarrito([]);
+      setMesa("");
+      return;
+    }
+
+    const nuevo = {
       id: Date.now(),
       mesa: parseInt(mesa),
       items: [...carrito],
@@ -92,8 +143,9 @@ export default function Pedidos({ alimentos, pedidos, setPedidos }) {
             type="number"
             placeholder="Nº Mesa"
             value={mesa}
+            disabled={editandoPedidoId !== null}
             onChange={e => setMesa(e.target.value)}
-            className="w-28 px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 text-sm"
+            className="w-28 px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 text-sm disabled:opacity-50"
           />
           <div className="flex gap-2 flex-wrap">
             {categorias.map(cat => (
@@ -160,11 +212,24 @@ export default function Pedidos({ alimentos, pedidos, setPedidos }) {
       <div className="w-72 flex flex-col gap-4 shrink-0">
 
         {/* Carrito */}
-        <div className="bg-slate-800 rounded-2xl border border-slate-700 p-4 flex flex-col gap-3">
+        <div className={`bg-slate-800 rounded-2xl border p-4 flex flex-col gap-3 ${
+          editandoPedidoId !== null ? "border-orange-500/60" : "border-slate-700"
+        }`}>
           <div className="flex items-center gap-2">
             <ShoppingCart size={16} className="text-orange-400" />
-            <h2 className="font-bold text-white text-sm">Pedido actual</h2>
+            <h2 className="font-bold text-white text-sm">
+              {editandoPedidoId !== null ? "Editando pedido" : "Pedido actual"}
+            </h2>
             {mesa && <span className="ml-auto text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full border border-orange-500/30">Mesa {mesa}</span>}
+            {editandoPedidoId !== null && (
+              <button
+                onClick={cancelarEdicion}
+                title="Cancelar edición"
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                <X size={15} />
+              </button>
+            )}
           </div>
 
           {carrito.length === 0 ? (
@@ -190,13 +255,23 @@ export default function Pedidos({ alimentos, pedidos, setPedidos }) {
             <span className="text-white font-bold">R$ {total.toFixed(2)}</span>
           </div>
 
-          <button
-            onClick={enviarPedido}
-            disabled={!mesa || carrito.length === 0}
-            className="w-full py-2.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-orange-500 hover:bg-orange-400 text-white"
-          >
-            Enviar a Cocina
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={enviarPedido}
+              disabled={!mesa || carrito.length === 0}
+              className="flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-orange-500 hover:bg-orange-400 text-white"
+            >
+              {editandoPedidoId !== null ? "Actualizar Pedido" : "Enviar a Cocina"}
+            </button>
+            {editandoPedidoId !== null && (
+              <button
+                onClick={cancelarEdicion}
+                className="px-3 py-2.5 rounded-xl font-semibold text-sm bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors"
+              >
+                Cancelar
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Pedidos activos */}
@@ -208,7 +283,9 @@ export default function Pedidos({ alimentos, pedidos, setPedidos }) {
             <p className="text-slate-600 text-xs text-center py-4">Sin pedidos activos</p>
           )}
           {pedidosActivos.map(pedido => (
-            <div key={pedido.id} className="bg-slate-800 rounded-xl border border-slate-700 p-3 flex flex-col gap-2">
+            <div key={pedido.id} className={`bg-slate-800 rounded-xl border p-3 flex flex-col gap-2 ${
+              editandoPedidoId === pedido.id ? "border-orange-500" : "border-slate-700"
+            }`}>
               <div className="flex items-center justify-between">
                 <span className="text-white font-bold text-sm">Mesa {pedido.mesa}</span>
                 <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium ${estadoColor[pedido.estado]}`}>
@@ -230,6 +307,13 @@ export default function Pedidos({ alimentos, pedidos, setPedidos }) {
                     Entregar
                   </button>
                 )}
+                <button
+                  onClick={() => iniciarEdicion(pedido)}
+                  className="px-2.5 py-1 text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-colors font-medium flex items-center gap-1"
+                  title="Editar o agregar platos a esta mesa"
+                >
+                  <Pencil size={12} /> Editar
+                </button>
               </div>
             </div>
           ))}

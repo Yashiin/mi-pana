@@ -83,14 +83,59 @@ export default function Caja({ pedidos, setPedidos }) {
     });
   };
 
-  const actualizarPagoParcial = (pedidoId, index, campo, valor) => {
+  const actualizarPagoParcial = (pedidoId, index, campo, valor, totalPedido) => {
     setDivisiones(prev => {
       const actual = prev[pedidoId];
       if (!actual) return prev;
-      const pagos = actual.pagos.map((pg, i) =>
+      let pagos = actual.pagos.map((pg, i) =>
         i === index ? { ...pg, [campo]: valor } : pg
       );
+      if (campo === "monto" && actual.personas === 2) {
+        const num = parseFloat(valor);
+        if (!isNaN(num) && num >= 0 && num <= totalPedido) {
+          const otroIdx = index === 0 ? 1 : 0;
+          const resto = +(totalPedido - num).toFixed(2);
+          pagos = pagos.map((pg, i) =>
+            i === otroIdx ? { ...pg, monto: resto.toFixed(2) } : pg
+          );
+        }
+      }
       return { ...prev, [pedidoId]: { ...actual, pagos } };
+    });
+  };
+
+  const resetearPartesIguales = (pedido) => {
+    setDivisiones(prev => {
+      const actual = prev[pedido.id];
+      if (!actual) return prev;
+      const cuotas = calcularCuotasIguales(pedido.total, actual.personas);
+      return {
+        ...prev,
+        [pedido.id]: {
+          ...actual,
+          pagos: cuotas.map((m, idx) => ({
+            monto: m.toFixed(2),
+            metodo: actual.pagos[idx]?.metodo || "",
+          })),
+        },
+      };
+    });
+  };
+
+  const completarRestoEnUltima = (pedido) => {
+    setDivisiones(prev => {
+      const actual = prev[pedido.id];
+      if (!actual) return prev;
+      const lastIdx = actual.pagos.length - 1;
+      const sumaPrevios = actual.pagos
+        .slice(0, lastIdx)
+        .reduce((s, pg) => s + (parseFloat(pg.monto) || 0), 0);
+      const resto = +(pedido.total - sumaPrevios).toFixed(2);
+      if (resto < 0) return prev;
+      const pagos = actual.pagos.map((pg, i) =>
+        i === lastIdx ? { ...pg, monto: resto.toFixed(2) } : pg
+      );
+      return { ...prev, [pedido.id]: { ...actual, pagos } };
     });
   };
 
@@ -238,9 +283,13 @@ export default function Caja({ pedidos, setPedidos }) {
                             <Plus size={13} />
                           </button>
                         </div>
-                        <span className="text-xs text-orange-400 font-semibold">
-                          ~R$ {(pedido.total / div.personas).toFixed(2)} c/u
-                        </span>
+                        <button
+                          onClick={() => resetearPartesIguales(pedido)}
+                          className="text-xs text-orange-400 hover:text-orange-300 font-semibold transition-colors"
+                          title="Repartir en partes iguales"
+                        >
+                          Partes iguales
+                        </button>
                       </div>
 
                       <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
@@ -252,12 +301,12 @@ export default function Caja({ pedidos, setPedidos }) {
                               step="0.01"
                               min="0"
                               value={pg.monto}
-                              onChange={e => actualizarPagoParcial(pedido.id, idx, "monto", e.target.value)}
+                              onChange={e => actualizarPagoParcial(pedido.id, idx, "monto", e.target.value, pedido.total)}
                               className="w-24 px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-white text-xs font-bold focus:outline-none focus:border-orange-500"
                             />
                             <select
                               value={pg.metodo}
-                              onChange={e => actualizarPagoParcial(pedido.id, idx, "metodo", e.target.value)}
+                              onChange={e => actualizarPagoParcial(pedido.id, idx, "metodo", e.target.value, pedido.total)}
                               className="flex-1 px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-white text-xs focus:outline-none focus:border-orange-500"
                             >
                               <option value="">Método...</option>
@@ -270,11 +319,21 @@ export default function Caja({ pedidos, setPedidos }) {
                       </div>
 
                       {Math.abs(diferencia) >= 0.02 && (
-                        <p className="text-xs text-amber-400 text-right font-medium">
-                          {diferencia > 0
-                            ? `Falta asignar: R$ ${diferencia.toFixed(2)}`
-                            : `Excede por: R$ ${Math.abs(diferencia).toFixed(2)}`}
-                        </p>
+                        <div className="flex items-center justify-between gap-2">
+                          {div.personas > 2 && diferencia > 0 ? (
+                            <button
+                              onClick={() => completarRestoEnUltima(pedido)}
+                              className="text-xs text-orange-400 hover:text-orange-300 font-medium underline"
+                            >
+                              Asignar resto a #{div.personas}
+                            </button>
+                          ) : <span />}
+                          <p className="text-xs text-amber-400 text-right font-medium">
+                            {diferencia > 0
+                              ? `Falta asignar: R$ ${diferencia.toFixed(2)}`
+                              : `Excede por: R$ ${Math.abs(diferencia).toFixed(2)}`}
+                          </p>
+                        </div>
                       )}
 
                       <button

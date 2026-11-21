@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Plus, Minus, ShoppingCart, X, Check, ChefHat, Clock } from "lucide-react";
+import { obtenerFechaISO } from "../data/store";
 
 export default function Pedidos({ alimentos, pedidos, setPedidos }) {
   const [mesa, setMesa] = useState("");
@@ -53,6 +54,7 @@ export default function Pedidos({ alimentos, pedidos, setPedidos }) {
       estado: "pendiente",
       hora: new Date().toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" }),
       fecha: new Date().toLocaleDateString("es"),
+      fechaISO: obtenerFechaISO(),
       fechaHoraCompleta: new Date(),
       pagado: false,
     };

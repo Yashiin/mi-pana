@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { CreditCard, Banknote, Smartphone, Check, X } from "lucide-react";
-import { METODOS_PAGO } from "../data/store";
+import { CreditCard, Banknote, Smartphone, Check } from "lucide-react";
+import { METODOS_PAGO, obtenerFechaISO, obtenerFechaPedidoISO } from "../data/store";
 
 const metodoIcono = {
   Efectivo: <Banknote size={16} />,
@@ -11,17 +11,24 @@ const metodoIcono = {
 
 export default function Caja({ pedidos, setPedidos }) {
   const [metodoPago, setMetodoPago] = useState({});
-  const [pagados, setPagados] = useState([]);
 
+  const hoyISO = obtenerFechaISO();
   const pedidosParaPagar = pedidos.filter(p => !p.pagado && p.estado === "entregado");
-  const pedidosPagadosHoy = pedidos.filter(p => p.pagado);
+  const pedidosPagadosHoy = pedidos.filter(p => p.pagado && obtenerFechaPedidoISO(p) === hoyISO);
 
   const confirmarPago = (pedidoId) => {
     const metodo = metodoPago[pedidoId];
     if (!metodo) return;
     setPedidos(prev => prev.map(p =>
       p.id === pedidoId
-        ? { ...p, pagado: true, metodoPago: metodo, horaPago: new Date().toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" }) }
+        ? {
+            ...p,
+            pagado: true,
+            metodoPago: metodo,
+            horaPago: new Date().toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" }),
+            fechaPago: new Date().toLocaleDateString("es"),
+            fechaPagoISO: obtenerFechaISO(),
+          }
         : p
     ));
     setMetodoPago(prev => { const n = { ...prev }; delete n[pedidoId]; return n; });

@@ -62,3 +62,30 @@ export const initialAlimentos = [
 export const CATEGORIAS = ["Hamburguesas", "Perros Calientes", "Salchipapas", "Bebidas", "Empanadas", "Arepas", "Otros","Patacon criollo","Club House"];
 
 export const METODOS_PAGO = ["Efectivo", "Tarjeta", "Transferencia", "PIX"];
+
+// ─── HELPERS DE FECHA (LOCAL YYYY-MM-DD) ─────────────────────
+export function obtenerFechaISO(fecha = new Date()) {
+  const d = fecha instanceof Date ? fecha : new Date(fecha);
+  if (isNaN(d.getTime())) return "";
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function obtenerFechaPedidoISO(pedido) {
+  if (pedido.fechaPagoISO) return pedido.fechaPagoISO;
+  if (pedido.fechaISO) return pedido.fechaISO;
+  if (pedido.fechaHoraCompleta) {
+    const iso = obtenerFechaISO(new Date(pedido.fechaHoraCompleta));
+    if (iso) return iso;
+  }
+  if (pedido.fecha && typeof pedido.fecha === "string") {
+    const partes = pedido.fecha.split("/");
+    if (partes.length === 3) {
+      const [dia, mes, anio] = partes;
+      return `${anio}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
+    }
+  }
+  return obtenerFechaISO(new Date(pedido.id));
+}

@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   ToggleLeft,
   ToggleRight,
+  Link2,
 } from "lucide-react";
 import { CATEGORIAS, CATEGORIAS_INSUMO, UNIDADES_INSUMO } from "../data/store";
 
@@ -43,6 +44,11 @@ export default function Inventario({ alimentos, setAlimentos, insumos, setInsumo
   const [editandoId, setEditandoId] = useState(null);
   const [mostrarForm, setMostrarForm] = useState(false);
   const [errores, setErrores] = useState({});
+
+  // Recetas (vínculo producto -> insumos)
+  const [recetaProductoId, setRecetaProductoId] = useState(null);
+  const [nuevoInsumoId, setNuevoInsumoId] = useState("");
+  const [nuevaCantidadReceta, setNuevaCantidadReceta] = useState("1");
 
   // ─── INSUMOS ────────────────────────────────────────────────
   const validar = () => {
@@ -142,6 +148,36 @@ export default function Inventario({ alimentos, setAlimentos, insumos, setInsumo
     setAlimentos(prev =>
       prev.map(a =>
         a.id === id ? { ...a, [campo]: isNaN(num) || num < 0 ? 0 : num } : a
+      )
+    );
+  };
+
+  const agregarIngredienteReceta = (productoId) => {
+    const insId = Number(nuevoInsumoId);
+    const cant = parseFloat(nuevaCantidadReceta);
+    if (!insId || isNaN(cant) || cant <= 0) return;
+
+    setAlimentos(prev =>
+      prev.map(a => {
+        if (a.id !== productoId) return a;
+        const actual = a.receta || [];
+        const existe = actual.find(r => r.insumoId === insId);
+        const receta = existe
+          ? actual.map(r => (r.insumoId === insId ? { ...r, cantidad: cant } : r))
+          : [...actual, { insumoId: insId, cantidad: cant }];
+        return { ...a, receta };
+      })
+    );
+    setNuevoInsumoId("");
+    setNuevaCantidadReceta("1");
+  };
+
+  const quitarIngredienteReceta = (productoId, insumoId) => {
+    setAlimentos(prev =>
+      prev.map(a =>
+        a.id === productoId
+          ? { ...a, receta: (a.receta || []).filter(r => r.insumoId !== insumoId) }
+          : a
       )
     );
   };
@@ -375,6 +411,18 @@ export default function Inventario({ alimentos, setAlimentos, insumos, setInsumo
                         )}
                       </div>
                       <p className="text-xs text-orange-400 mt-0.5">{producto.categoria}</p>
+                      {producto.receta && producto.receta.length > 0 && (
+                        <p className="text-[11px] text-slate-400 mt-0.5 truncate">
+                          Descuenta:{" "}
+                          {producto.receta
+                            .map(r => {
+                              const ins = insumos.find(i => i.id === r.insumoId);
+                              return ins ? `${r.cantidad} ${ins.unidad} ${ins.nombre}` : null;
+                            })
+                            .filter(Boolean)
+                            .join(", ")}
+                        </p>
+                      )}
                     </div>
 
                     {controlado && (
@@ -412,6 +460,21 @@ export default function Inventario({ alimentos, setAlimentos, insumos, setInsumo
                         </div>
                       </div>
                     )}
+
+                    <button
+                      onClick={() => setRecetaProductoId(recetaProductoId === producto.id ? null : producto.id)}
+                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all shrink-0 ${
+                        recetaProductoId === producto.id
+                          ? "bg-orange-500 text-white border-orange-500"
+                          : producto.receta?.length
+                          ? "bg-blue-500/20 text-blue-400 border-blue-500/30 hover:bg-blue-500/30"
+                          : "bg-slate-700 text-slate-300 border-slate-600 hover:text-white"
+                      }`}
+                      title="Vincular insumos que descuenta este plato"
+                    >
+                      <Link2 size={13} />
+                      Receta{producto.receta?.length ? ` (${producto.receta.length})` : ""}
+                    </button>
 
                     <button
                       onClick={() => toggleControlStock(producto.id)}
@@ -547,18 +610,101 @@ export default function Inventario({ alimentos, setAlimentos, insumos, setInsumo
               </ul>
             </div>
           </div>
-        ) : (
-          <div className="w-72 shrink-0 flex flex-col gap-4">
-            <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-4">
-              <p className="text-xs text-slate-400 font-semibold mb-2">AUTO-DESCUENTO EN PEDIDOS</p>
-              <ul className="text-xs text-slate-400 space-y-2">
-                <li>• Activa <strong className="text-emerald-400">Control activo</strong> en productos contables (bebidas, queso llanero, harina pan, etc.).</li>
-                <li>• Cada vez que envíes un pedido en <strong className="text-white">Pedidos</strong>, el stock se descontará automáticamente.</li>
-                <li>• Si un producto llega a <strong className="text-red-400">0</strong>, aparecerá como Agotado y no se podrá vender de más.</li>
-              </ul>
+        ) : (() => {
+          const productoReceta = alimentos.find(a => a.id === recetaProductoId);
+          return (
+            <div className="w-72 shrink-0 flex flex-col gap-4">
+              {productoReceta ? (
+                <div className="bg-slate-800 rounded-2xl border border-orange-500/50 p-5 flex flex-col gap-3.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-[11px] text-orange-400 font-semibold uppercase">Receta / Descuento</p>
+                      <h3 className="font-bold text-white text-sm leading-tight">{productoReceta.nombre}</h3>
+                    </div>
+                    <button
+                      onClick={() => setRecetaProductoId(null)}
+                      className="text-slate-400 hover:text-white"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+
+                  <p className="text-xs text-slate-400">
+                    Insumos que se descuentan automáticamente al vender 1 unidad:
+                  </p>
+
+                  <div className="flex flex-col gap-1.5">
+                    {(!productoReceta.receta || productoReceta.receta.length === 0) ? (
+                      <p className="text-xs text-slate-500 py-2 text-center bg-slate-900/50 rounded-xl">
+                        Sin insumos vinculados
+                      </p>
+                    ) : (
+                      productoReceta.receta.map(r => {
+                        const ins = insumos.find(i => i.id === r.insumoId);
+                        if (!ins) return null;
+                        return (
+                          <div key={r.insumoId} className="flex items-center justify-between bg-slate-900 rounded-xl px-3 py-2 border border-slate-700">
+                            <span className="text-xs text-white truncate">
+                              <strong className="text-orange-400">{r.cantidad} {ins.unidad}</strong> · {ins.nombre}
+                            </span>
+                            <button
+                              onClick={() => quitarIngredienteReceta(productoReceta.id, r.insumoId)}
+                              className="text-slate-500 hover:text-red-400 shrink-0 ml-2"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <div className="border-t border-slate-700 pt-3 flex flex-col gap-2">
+                    <select
+                      value={nuevoInsumoId}
+                      onChange={e => setNuevoInsumoId(e.target.value)}
+                      className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs focus:outline-none focus:border-orange-500"
+                    >
+                      <option value="">Elegir insumo...</option>
+                      {insumos.map(ins => (
+                        <option key={ins.id} value={ins.id}>
+                          {ins.nombre} ({ins.unidad})
+                        </option>
+                      ))}
+                    </select>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.1"
+                        value={nuevaCantidadReceta}
+                        onChange={e => setNuevaCantidadReceta(e.target.value)}
+                        placeholder="Cant."
+                        className="w-20 px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs focus:outline-none focus:border-orange-500"
+                      />
+                      <button
+                        onClick={() => agregarIngredienteReceta(productoReceta.id)}
+                        disabled={!nuevoInsumoId}
+                        className="flex-1 py-2 rounded-xl font-bold text-xs bg-orange-500 hover:bg-orange-400 disabled:opacity-40 text-white transition-colors flex items-center justify-center gap-1"
+                      >
+                        <Plus size={14} /> Vincular
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-4">
+                  <p className="text-xs text-slate-400 font-semibold mb-2">AUTO-DESCUENTO EN PEDIDOS</p>
+                  <ul className="text-xs text-slate-400 space-y-2">
+                    <li>• Usa <strong className="text-blue-400">Receta</strong> para vincular un plato con sus insumos (ej. 1 Hamburguesa de Carne descuenta 1 Carne de Hamburguesa y 1 Pan).</li>
+                    <li>• Activa <strong className="text-emerald-400">Control activo</strong> para contar unidades directas (bebidas, queso, harina).</li>
+                    <li>• Si un insumo o producto llega a <strong className="text-red-400">0</strong>, aparecerá como Agotado en Pedidos.</li>
+                  </ul>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );

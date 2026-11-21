@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Plus, Minus, ShoppingCart, X, Check, ChefHat, Clock, Pencil } from "lucide-react";
 import { obtenerFechaISO } from "../data/store";
 
-export default function Pedidos({ alimentos, setAlimentos, pedidos, setPedidos }) {
+export default function Pedidos({ alimentos, setAlimentos, insumos = [], setInsumos, pedidos, setPedidos }) {
   const [mesa, setMesa] = useState("");
   const [carrito, setCarrito] = useState([]);
   const [categoriaFiltro, setCategoriaFiltro] = useState("Todos");
@@ -22,11 +22,38 @@ export default function Pedidos({ alimentos, setAlimentos, pedidos, setPedidos }
     return (alimento.stock ?? 0) + enPedidoEditado;
   };
 
+  const insumoRestantePara = (insumoId) => {
+    const insumo = insumos.find(i => i.id === insumoId);
+    if (!insumo) return Infinity;
+    let reservadoEnEdicion = 0;
+    if (editandoPedidoId !== null) {
+      const pedidoOrig = pedidos.find(p => p.id === editandoPedidoId);
+      pedidoOrig?.items.forEach(item => {
+        const alim = alimentos.find(a => a.id === item.id);
+        const rec = alim?.receta?.find(r => r.insumoId === insumoId);
+        if (rec) reservadoEnEdicion += rec.cantidad * item.cantidad;
+      });
+    }
+    let usadoEnCarrito = 0;
+    carrito.forEach(item => {
+      const alim = alimentos.find(a => a.id === item.id);
+      const rec = alim?.receta?.find(r => r.insumoId === insumoId);
+      if (rec) usadoEnCarrito += rec.cantidad * item.cantidad;
+    });
+    return +(insumo.cantidad + reservadoEnEdicion - usadoEnCarrito).toFixed(2);
+  };
+
+  const puedeAgregarPorReceta = (alimento) => {
+    if (!alimento.receta || alimento.receta.length === 0) return true;
+    return alimento.receta.every(r => insumoRestantePara(r.insumoId) >= r.cantidad);
+  };
+
   const agregarAlCarrito = (alimento) => {
     setCarrito(prev => {
       const existe = prev.find(i => i.id === alimento.id);
       const actual = existe ? existe.cantidad : 0;
       if (actual >= maxDisponiblePara(alimento)) return prev;
+      if (!puedeAgregarPorReceta(alimento)) return prev;
       if (existe) return prev.map(i => i.id === alimento.id ? { ...i, cantidad: i.cantidad + 1 } : i);
       return [...prev, { ...alimento, cantidad: 1 }];
     });
@@ -64,11 +91,28 @@ export default function Pedidos({ alimentos, setAlimentos, pedidos, setPedidos }
   }
 
   const aplicarAjusteStock = (deltas) => {
-    if (!setAlimentos) return;
-    setAlimentos(prev => prev.map(a => {
-      if (!a.controlarStock || !deltas[a.id]) return a;
-      return { ...a, stock: Math.max(0, (a.stock ?? 0) - deltas[a.id]) };
-    }));
+    if (setAlimentos) {
+      setAlimentos(prev => prev.map(a => {
+        if (!a.controlarStock || !deltas[a.id]) return a;
+        return { ...a, stock: Math.max(0, (a.stock ?? 0) - deltas[a.id]) };
+      }));
+    }
+    if (setInsumos) {
+      const insumoDeltas = {};
+      Object.entries(deltas).forEach(([alimIdStr, delta]) => {
+        if (!delta) return;
+        const alim = alimentos.find(a => a.id === Number(alimIdStr));
+        alim?.receta?.forEach(r => {
+          insumoDeltas[r.insumoId] = (insumoDeltas[r.insumoId] || 0) + r.cantidad * delta;
+        });
+      });
+      if (Object.keys(insumoDeltas).length > 0) {
+        setInsumos(prev => prev.map(ins => {
+          if (!insumoDeltas[ins.id]) return ins;
+          return { ...ins, cantidad: Math.max(0, +(ins.cantidad - insumoDeltas[ins.id]).toFixed(2)) };
+        }));
+      }
+    }
   };
 
   const enviarPedido = () => {
@@ -212,8 +256,9 @@ export default function Pedidos({ alimentos, setAlimentos, pedidos, setPedidos }
           {alimentosFiltrados.map(alimento => {
             const qty = cantidadEnCarrito(alimento.id);
             const maxDisp = maxDisponiblePara(alimento);
-            const sinStock = alimento.controlarStock && maxDisp <= 0;
-            const enLimite = alimento.controlarStock && qty >= maxDisp;
+            const recetaOk = puedeAgregarPorReceta(alimento);
+            const sinStock = (alimento.controlarStock && maxDisp <= 0) || (qty === 0 && !recetaOk);
+            const enLimite = (alimento.controlarStock && qty >= maxDisp) || !recetaOk;
             const stockBajo = alimento.controlarStock && (alimento.stock ?? 0) <= (alimento.stockMinimo ?? 5);
 
             return (

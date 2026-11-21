@@ -62,7 +62,7 @@ export default function App() {
     alimentos.filter(a => a.controlarStock && (a.stock ?? 0) <= (a.stockMinimo ?? 5)).length;
 
   const PAGES = {
-    pedidos:    <Pedidos    alimentos={alimentos} setAlimentos={setAlimentos} pedidos={pedidos} setPedidos={setPedidos} />,
+    pedidos:    <Pedidos    alimentos={alimentos} setAlimentos={setAlimentos} insumos={insumos} setInsumos={setInsumos} pedidos={pedidos} setPedidos={setPedidos} />,
     caja:       <Caja       pedidos={pedidos} setPedidos={setPedidos} />,
     reportes:   <Reportes   pedidos={pedidos} />,
     alimentos:  <Alimentos  alimentos={alimentos} setAlimentos={setAlimentos} />,
